@@ -103,7 +103,7 @@ def scan_image():
         text = manager.scan_image(image_bytes, mime_type)
     except GeminiError as exc:
         current_app.logger.exception("Fallo la transcripcion")
-        raise ApiError(f"No se pudo procesar la imagen: {exc}", 502) from exc
+        raise ApiError(f"No se pudo procesar la imagen: {exc.message}", exc.status) from exc
 
     return jsonify(
         {
