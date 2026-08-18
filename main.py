@@ -1,6 +1,7 @@
-"""Runner para desarrollo local.
+"""Entrypoint de la aplicacion.
 
-En produccion Vercel importa `api/index.py`, no este archivo.
+Vercel usa este mismo archivo como entrypoint (preset `flask`): detecta la
+app WSGI `app` de nivel superior. El bloque `__main__` solo corre en local.
 """
 
 import os

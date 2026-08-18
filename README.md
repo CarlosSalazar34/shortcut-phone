@@ -6,8 +6,7 @@ desde un Atajo de iPhone. Desplegado en Vercel como función Python.
 ## Estructura
 
 ```
-api/index.py      entrypoint de Vercel (expone la app WSGI)
-main.py           runner de desarrollo local
+main.py           entrypoint: expone la app WSGI `app` (Vercel y local)
 app/__init__.py   application factory + manejo de errores en JSON
 app/config.py     configuración leída del entorno
 app/routes.py     endpoints y validación de la petición
@@ -68,9 +67,15 @@ vercel --prod
 
 Notas:
 
+- El proyecto usa el **framework preset `flask`** de Vercel: construye toda la
+  app como una función y le enruta todas las peticiones. No añadas `rewrites`
+  ni un bloque `functions` — el rewrite reescribe el path y Flask deja de ver
+  la ruta original (todo le llega como `/api/index` y responde 404). El
+  `functions` de `vercel.json` solo acepta globs dentro de `api/`, que aquí no
+  existe, y rompe el build.
+- El entrypoint es `main.py` en la raíz, con `app` a nivel superior.
+- Duración máxima por defecto: 300s, de sobra para una transcripción.
 - El runtime de Python de Vercel usa **3.12**; el código es compatible.
-- `vercel.json` reescribe todas las rutas a `api/index.py` y fija
-  `maxDuration: 60s`, suficiente para una transcripción.
 - El límite de cuerpo de la petición lo impone la plataforma. `MAX_UPLOAD_BYTES`
   (10 MB por defecto) solo protege el dev local y devuelve un 413 en JSON.
 - La instancia de `ChatbotManager` se reutiliza entre invocaciones calientes.
