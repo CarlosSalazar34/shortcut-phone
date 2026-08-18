@@ -43,18 +43,49 @@ def require_token(view):
     return wrapper
 
 
-def _image_from_request() -> tuple[bytes, str]:
-    """Acepta multipart/form-data (campo `file`) o JSON con base64.
+def _sniff_mime(data: bytes) -> str | None:
+    """Deduce el tipo por los magic bytes.
 
-    Atajos puede mandar cualquiera de los dos: 'Request Body: Form' con un
-    archivo, o 'JSON' con la imagen pasada por la accion Base64 Encode.
+    Atajos no siempre etiqueta bien la foto; los bytes nunca mienten.
     """
-    if "file" in request.files:
-        file = request.files["file"]
-        if not file.filename:
-            raise ApiError("El campo `file` viene vacio. 🤖")
-        data = file.read()
-        mime_type = file.mimetype or "application/octet-stream"
+    if data.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if data.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "image/webp"
+    if data[4:8] == b"ftyp" and data[8:12] in (b"heic", b"heix", b"hevc", b"mif1", b"msf1"):
+        return "image/heic"
+    return None
+
+
+def _debug_summary() -> str:
+    """Que llego realmente, para poder depurar desde el telefono."""
+    return (
+        f"content_type={request.content_type or 'ninguno'} "
+        f"archivos={list(request.files.keys()) or 'ninguno'} "
+        f"campos={list(request.form.keys()) or 'ninguno'} "
+        f"bytes_cuerpo={request.content_length or 0}"
+    )
+
+
+def _image_from_request() -> tuple[bytes, str]:
+    """Acepta las tres formas en que un Atajo puede mandar una imagen.
+
+    1. multipart/form-data  -> 'Solicitar cuerpo: Formulario' con un campo Archivo
+    2. cuerpo binario crudo -> 'Solicitar cuerpo: Archivo'
+    3. JSON con base64      -> 'Solicitar cuerpo: JSON' + accion Codificar en base64
+
+    En multipart aceptamos cualquier nombre de campo: Atajos no siempre respeta
+    el que escribes, y exigir `file` solo genera un 400 dificil de diagnosticar.
+    """
+    data: bytes
+    mime_type: str
+
+    if request.files:
+        storage = request.files.get("file") or next(iter(request.files.values()))
+        data = storage.read()
+        mime_type = storage.mimetype or ""
     elif request.is_json:
         payload = request.get_json(silent=True) or {}
         raw = payload.get("image_base64")
@@ -64,18 +95,26 @@ def _image_from_request() -> tuple[bytes, str]:
             data = base64.b64decode(raw, validate=True)
         except (binascii.Error, ValueError) as exc:
             raise ApiError("`image_base64` no es base64 valido.") from exc
-        mime_type = payload.get("mime_type", "image/jpeg")
+        mime_type = payload.get("mime_type", "")
     else:
-        raise ApiError("No se subio ningun archivo. ❌")
+        # Cuerpo crudo: 'Solicitar cuerpo: Archivo' en Atajos.
+        data = request.get_data()
+        mime_type = request.mimetype or ""
 
     if not data:
-        raise ApiError("La imagen esta vacia. ❌")
+        raise ApiError(
+            "No llego ninguna imagen. ❌ En el Atajo, pon `Solicitar cuerpo: Archivo` "
+            f"y como valor la foto. Recibido: {_debug_summary()}"
+        )
 
-    mime_type = mime_type.split(";")[0].strip().lower()
+    # Los magic bytes mandan sobre la etiqueta declarada.
+    mime_type = (_sniff_mime(data) or mime_type).split(";")[0].strip().lower()
+
     allowed = current_app.config["ALLOWED_MIME_TYPES"]
     if mime_type not in allowed:
         raise ApiError(
-            f"Tipo `{mime_type}` no soportado. Permitidos: {', '.join(sorted(allowed))}.",
+            f"Tipo `{mime_type or 'desconocido'}` no soportado. "
+            f"Permitidos: {', '.join(sorted(allowed))}.",
             415,
         )
     return data, mime_type

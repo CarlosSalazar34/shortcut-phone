@@ -22,10 +22,14 @@ Health check. Devuelve `{"ok": true, "model": "...", "time": "..."}`.
 ### `POST /scan/image`
 Requiere cabecera `X-API-Token: <API_TOKEN>` (o `Authorization: Bearer <API_TOKEN>`).
 
-Acepta dos formatos:
+Acepta tres formatos:
 
-- **multipart/form-data** con el campo `file`
+- **cuerpo binario crudo** (`Content-Type: image/*`) — el más simple desde Atajos
+- **multipart/form-data** — se usa el campo `file`, o el primer archivo que llegue
 - **application/json** con `{"image_base64": "...", "mime_type": "image/jpeg"}`
+
+El tipo real se deduce de los magic bytes, así que una etiqueta incorrecta
+(`application/octet-stream`) no rompe la petición.
 
 Respuesta:
 
@@ -84,13 +88,23 @@ Notas:
 
 1. **Tomar foto** (o *Seleccionar fotos*).
 2. **Obtener contenido de URL**
-   - URL: `https://<tu-deploy>.vercel.app/scan/image`
+   - URL: `https://shortcut-phone.vercel.app/scan/image` — una sola barra antes
+     de `scan`; con `//scan/image` Vercel responde 308 y el Atajo se cuelga.
    - Método: `POST`
-   - Cabeceras: `X-API-Token` → tu `API_TOKEN`
-   - Cuerpo de la petición: `Formulario`
-     - Campo `file` → tipo *Archivo* → la foto del paso 1
+   - Encabezados: `X-API-Token` → tu `API_TOKEN` de producción
+   - Cuerpo de la petición: **`Archivo`** → la foto del paso 1
 3. **Obtener valor del diccionario** → clave `text`.
 4. **Mostrar resultado** / **Copiar al portapapeles**.
+
+`Archivo` es la opción más fiable: manda la foto como cuerpo binario, sin
+nombres de campo que puedan no coincidir. El endpoint también acepta
+`Formulario` (con cualquier nombre de campo) y `JSON` con `image_base64`.
+
+Si algo falla, el error incluye lo que llegó de verdad:
+
+```json
+{"ok": false, "error": "No llego ninguna imagen. ❌ ... Recibido: content_type=... archivos=... campos=... bytes_cuerpo=0"}
+```
 
 ## Variables de entorno
 
