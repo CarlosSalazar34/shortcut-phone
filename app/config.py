@@ -38,9 +38,10 @@ class Config:
     GEMINI_API_KEY: str
     API_TOKEN: str
     GEMINI_MODEL: str = "gemini-3.6-flash"
-    # Vercel corta el body antes de que llegue aqui, pero este limite protege
-    # el dev local y produce un 413 en JSON en vez de reventar.
-    MAX_CONTENT_LENGTH: int = 10 * 1024 * 1024
+    # Alineado con el limite real del edge de Vercel (4.5 MB): por encima de
+    # eso la peticion muere con FUNCTION_PAYLOAD_TOO_LARGE antes de llegar
+    # aqui. Mismo tope en local para que dev y produccion se comporten igual.
+    MAX_CONTENT_LENGTH: int = 4_500_000
     ALLOWED_MIME_TYPES: frozenset[str] = field(default=DEFAULT_ALLOWED_MIME_TYPES)
 
     @classmethod

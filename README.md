@@ -80,21 +80,27 @@ Notas:
 - El entrypoint es `main.py` en la raíz, con `app` a nivel superior.
 - Duración máxima por defecto: 300s, de sobra para una transcripción.
 - El runtime de Python de Vercel usa **3.12**; el código es compatible.
-- El límite de cuerpo de la petición lo impone la plataforma. `MAX_UPLOAD_BYTES`
-  (10 MB por defecto) solo protege el dev local y devuelve un 413 en JSON.
+- **El cuerpo de la petición no puede pasar de 4.5 MB.** Lo impone el edge de
+  Vercel antes de invocar la función, así que la app no puede capturarlo: el
+  cliente recibe `FUNCTION_PAYLOAD_TOO_LARGE` en texto plano, no JSON. Una foto
+  de iPhone sin redimensionar lo supera con facilidad — redimensiona en el
+  Atajo. `MAX_UPLOAD_BYTES` replica ese tope en local.
 - La instancia de `ChatbotManager` se reutiliza entre invocaciones calientes.
 
 ## Configuración del Atajo (iPhone)
 
 1. **Tomar foto** (o *Seleccionar fotos*).
-2. **Obtener contenido de URL**
+2. **Redimensionar imagen** → Anchura `1600`, Altura `Automática`.
+   Sin esto una foto de iPhone supera los 4.5 MB que admite Vercel y recibirás
+   `FUNCTION_PAYLOAD_TOO_LARGE`. 1600px sobra para transcribir texto.
+3. **Obtener contenido de URL**
    - URL: `https://shortcut-phone.vercel.app/scan/image` — una sola barra antes
      de `scan`; con `//scan/image` Vercel responde 308 y el Atajo se cuelga.
    - Método: `POST`
    - Encabezados: `X-API-Token` → tu `API_TOKEN` de producción
    - Cuerpo de la petición: **`Archivo`** → la foto del paso 1
-3. **Obtener valor del diccionario** → clave `text`.
-4. **Mostrar resultado** / **Copiar al portapapeles**.
+4. **Obtener valor del diccionario** → clave `text`.
+5. **Mostrar resultado** / **Copiar al portapapeles**.
 
 `Archivo` es la opción más fiable: manda la foto como cuerpo binario, sin
 nombres de campo que puedan no coincidir. El endpoint también acepta
@@ -113,4 +119,4 @@ Si algo falla, el error incluye lo que llegó de verdad:
 | `GEMINI_API_KEY` | sí | Clave de [Google AI Studio](https://aistudio.google.com/apikey). También se acepta `GEMINI_APIKEY`. |
 | `API_TOKEN` | sí | Token compartido con el Atajo. Genéralo con `openssl rand -hex 32`. |
 | `GEMINI_MODEL` | no | Por defecto `gemini-3.6-flash`. |
-| `MAX_UPLOAD_BYTES` | no | Por defecto `10485760` (10 MB). |
+| `MAX_UPLOAD_BYTES` | no | Por defecto `4500000` (4.5 MB), el límite del edge de Vercel. |
